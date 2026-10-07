@@ -1,0 +1,8 @@
+{
+  "package": "anki_mcp_bridge",
+  "name": "Anki MCP Bridge",
+  "conflicts": [],
+  "mod": 0,
+  "min_point_version": 231000,
+  "homepage": "https://github.com/MeisamHakimi/anki-mcp-server"
+}
