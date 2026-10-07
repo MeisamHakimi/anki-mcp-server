@@ -821,6 +821,9 @@ def _cli_install_bridge(argv: list[str]) -> None:
 
 def main() -> None:
     argv = sys.argv[1:]
+    if argv[:1] == ["setup"]:
+        from .setup_wizard import main as setup_main
+        sys.exit(setup_main(argv[1:]))
     if argv[:1] == ["install-bridge"]:
         _cli_install_bridge(argv[1:])
         return
@@ -828,7 +831,7 @@ def main() -> None:
         print(__version__)
         return
     if argv:
-        sys.exit("usage: anki-mcp-server [install-bridge [--yes] | --version]   (no arguments: run the MCP server on stdio)")
+        sys.exit("usage: anki-mcp-server [setup [--yes] [--dry-run] | install-bridge [--yes] | --version]   (no arguments: run the MCP server on stdio)")
     logging.basicConfig(stream=sys.stderr, level=logging.INFO, format="%(levelname)s anki-mcp-server: %(message)s")
     try:
         settings = Settings.from_env()

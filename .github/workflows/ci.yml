@@ -27,3 +27,33 @@ jobs:
         with:
           name: anki_mcp_bridge.ankiaddon
           path: dist/anki_mcp_bridge.ankiaddon
+
+  installer:
+    # Runs the one-line installers in dry-run mode against this checkout. Runners have no Anki, so the wizard must
+    # stop at step 1 with install instructions, which proves uv + package install + wizard start work on each OS.
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    steps:
+      - uses: actions/checkout@v4
+      - name: install.sh --dry-run
+        if: runner.os != 'Windows'
+        shell: bash
+        run: |
+          export ANKI_MCP_SOURCE="anki-mcp-server @ file://$GITHUB_WORKSPACE"
+          sh install.sh --dry-run --yes > out.txt 2>&1 || true
+          cat out.txt
+          grep -q "setup (dry run" out.txt
+          grep -qE "apps.ankiweb.net|would run: brew install" out.txt
+      - name: install.ps1 --dry-run
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $env:ANKI_MCP_SOURCE = "anki-mcp-server @ file:///$($env:GITHUB_WORKSPACE -replace '\\','/')"
+          ./install.ps1 --dry-run --yes *> out.txt
+          Get-Content out.txt
+          if (-not (Select-String -Path out.txt -Pattern "setup \(dry run" -Quiet)) { exit 1 }
+          if (-not (Select-String -Path out.txt -Pattern "apps.ankiweb.net" -Quiet)) { exit 1 }
+          $global:LASTEXITCODE = 0

@@ -9,4 +9,6 @@ First release.
 - Audio: `anki_generate_audio` with built-in Google Translate voices (no add-on needed) or AwesomeTTS via the bridge add-on; only fills empty fields
 - Change and delete with preview → confirm tokens and automatic backups: `anki_update_notes`, `anki_move_notes`, `anki_rename_deck` (works without the bridge), `anki_rename_profile`, `anki_delete_notes`, `anki_delete_deck`
 - `anki_install_bridge` tool and `anki-mcp-server install-bridge` command to install the bundled bridge add-on
+- One-line installers (`install.sh`, `install.ps1`) and an `anki-mcp-server setup` wizard: installs uv, checks Anki (offers Homebrew/Flatpak install), installs and verifies AnkiConnect from AnkiWeb, optionally installs the bridge, restarts Anki, and configures Claude Desktop / Claude Code with backups; `--dry-run` supported
+- Installs from GitHub zip archives, so git isn't required
 - Localhost-only Anki connections, allowlisted AnkiConnect actions, read-only and no-delete modes, auto-launch of Anki with clear setup hints when Anki or AnkiConnect is missing

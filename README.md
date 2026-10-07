@@ -12,66 +12,85 @@ It works on **macOS, Windows and Linux**, with Anki Desktop and the free [AnkiCo
 
 ---
 
-## Quick start (about 5 minutes)
+## Quick start
 
-### 1. Install Anki Desktop
+### 1. Install Anki Desktop (once)
 
-Download it from **<https://apps.ankiweb.net>** and install it like any other app. Open it once.
+Download it from **<https://apps.ankiweb.net>**, install it, and **open it once**: its first window asks for a language and creates your profile.
+- **macOS:** open the `.dmg` and drag Anki to Applications. With Homebrew: `brew install --cask anki`.
+- **Windows:** run the installer (`anki-…-windows.exe`).
+- **Linux:** use the official package from the download page, or Flatpak: `flatpak install flathub net.ankiweb.Anki`.
 
-*Optional:* to get your cards on your phone, create a free [AnkiWeb](https://ankiweb.net) account and click **Sync** in Anki. Then install AnkiDroid (Android) or AnkiMobile (iPhone) and sign in with the same account.
+Anki 23.10 or newer is required. If Anki is missing, the installer below offers to install it with Homebrew/Flatpak, or opens the download page.
 
-### 2. Install the AnkiConnect add-on
+*Phone:* to get your cards on your phone, create a free [AnkiWeb](https://ankiweb.net) account, click **Sync** in Anki, and sign in to AnkiDroid (Android) or AnkiMobile (iPhone) with the same account.
 
-1. In Anki, choose **Tools → Add-ons → Get Add-ons…**
-2. Enter the code **`2055492159`** and click **OK**.
-3. **Restart Anki.** Quit it completely, then open it again.
+### 2. Run the installer (one line)
 
-*macOS tip:* to stop macOS from slowing down Anki while it's in the background, run this once in Terminal:
+**macOS / Linux** (Terminal):
+
+```bash
+curl -LsSf https://raw.githubusercontent.com/MeisamHakimi/anki-mcp-server/main/install.sh | sh
+```
+
+**Windows** (PowerShell):
+
+```powershell
+powershell -ExecutionPolicy ByPass -c "irm https://raw.githubusercontent.com/MeisamHakimi/anki-mcp-server/main/install.ps1 | iex"
+```
+
+The installer:
+1. installs [uv](https://docs.astral.sh/uv/) if it's missing. uv brings its own Python, so you don't need Python or git.
+2. starts the setup wizard, which **asks before every change**:
+   - checks that Anki is installed,
+   - installs the **AnkiConnect** add-on from AnkiWeb (the same download Anki's *Get Add-ons* uses, verified before installing),
+   - optionally installs the **Anki MCP Bridge** add-on (recommended if you use AwesomeTTS),
+   - restarts Anki and checks the connection,
+   - adds the server to **Claude Desktop** (backing up your config; an existing `anki` entry is never replaced without asking) and to **Claude Code** if it's installed.
+
+Add `--dry-run` to see what it would do without changing anything (`… | sh -s -- --dry-run`). To read the scripts first, see [install.sh](install.sh) and [install.ps1](install.ps1).
+
+### 3. Restart Claude and try it
+
+Quit Claude Desktop **completely** (⌘Q on Mac, File → Exit on Windows) and reopen it. Then say **"Check my Anki status."**
+
+You don't need to open Anki first: if it isn't running, the server starts it in the background. Claude asks permission the first time it uses each tool.
+
+Don't have Claude Desktop yet? Get it at <https://claude.ai/download>, then run the installer again.
+
+### Manual setup (if you prefer not to use the installer)
+
+1. **AnkiConnect:** in Anki choose **Tools → Add-ons → Get Add-ons…**, enter **`2055492159`**, click OK, then restart Anki.
+2. **uv:** run `curl -LsSf https://astral.sh/uv/install.sh | sh` (macOS/Linux) or `powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"` (Windows). Then find the **full path** of uvx with `which uvx` (macOS/Linux) or `where uvx` (Windows).
+3. **Claude Desktop:** go to Settings → Developer → Edit Config, add the following inside the top-level `{ }`, save, and fully restart Claude. Use the full uvx path: desktop apps often can't see your terminal's PATH.
+
+   ```json
+   "mcpServers": {
+     "anki": {
+       "command": "/Users/<you>/.local/bin/uvx",
+       "args": ["--from", "anki-mcp-server @ https://github.com/MeisamHakimi/anki-mcp-server/archive/refs/heads/main.zip", "anki-mcp-server"]
+     }
+   }
+   ```
+
+   If `"mcpServers"` already exists, add just the `"anki": {…}` part inside it.
+4. **Claude Code:**
+
+   ```bash
+   claude mcp add anki --scope user -- uvx --from "anki-mcp-server @ https://github.com/MeisamHakimi/anki-mcp-server/archive/refs/heads/main.zip" anki-mcp-server
+   ```
+
+5. **Other MCP clients:** run the same `uvx …` command (or `pip install` the zip URL and run `anki-mcp-server`) as a stdio server.
+
+**macOS tip:** if Anki responds slowly while it's in the background, run this once and restart Anki:
 
 ```bash
 defaults write net.ankiweb.dtop NSAppSleepDisabled -bool true
 ```
 
-### 3. Install uv
+### Updating
 
-uv runs this server without you installing Python or anything else by hand.
-
-- **macOS / Linux:** `curl -LsSf https://astral.sh/uv/install.sh | sh`
-- **Windows (PowerShell):** `powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"`
-- Or with Homebrew: `brew install uv`
-
-Then find the full path of `uvx`; you'll need it in the next step:
-- macOS/Linux: `which uvx` (usually `/Users/<you>/.local/bin/uvx` or `/opt/homebrew/bin/uvx`)
-- Windows: `where uvx`
-
-### 4. Add it to Claude
-
-**Claude Desktop:** go to **Settings → Developer → Edit Config**, add the following (use your `uvx` path from step 3), save, and **fully quit and reopen Claude**:
-
-```json
-{
-  "mcpServers": {
-    "anki": {
-      "command": "/Users/<you>/.local/bin/uvx",
-      "args": ["--from", "git+https://github.com/MeisamHakimi/anki-mcp-server", "anki-mcp-server"]
-    }
-  }
-}
-```
-
-If the file already has other content, add `"anki": {...}` inside the existing `"mcpServers"` (or add `"mcpServers"` next to the other top-level keys). The full path matters because desktop apps often can't see your terminal's PATH.
-
-**Claude Code:**
-
-```bash
-claude mcp add anki --scope user -- uvx --from git+https://github.com/MeisamHakimi/anki-mcp-server anki-mcp-server
-```
-
-**Other MCP clients:** run `anki-mcp-server` (via uvx as above, or after `pip install git+https://github.com/MeisamHakimi/anki-mcp-server`) as a stdio server.
-
-### 5. Try it
-
-Open a new chat and say **"Check my Anki status."** You don't need to open Anki first: if it isn't running, the server starts it in the background. Claude asks permission the first time it uses each tool.
+Run the installer again. It points Claude at the newest release; restart Claude afterwards.
 
 ---
 
@@ -95,7 +114,7 @@ Everything works without it. The bridge adds three things AnkiConnect can't do:
 - **Exact deck renames**, which keep the deck description and allow capitalization-only changes. Without the bridge, renames move the cards to a newly named deck, which keeps the cards, review history and options.
 - Use your **AwesomeTTS** voice
 
-**Install:** ask Claude *"Install the Anki MCP bridge"*, or run `uvx --from git+https://github.com/MeisamHakimi/anki-mcp-server anki-mcp-server install-bridge`. Then restart Anki.
+**Install:** say yes when the installer offers it, or ask Claude *"Install the Anki MCP bridge"*. Then restart Anki.
 
 It listens on `127.0.0.1:8766` only, refuses requests from web browsers, and never returns AwesomeTTS settings or API keys. AwesomeTTS support relies on AwesomeTTS internals (tested with 1.89.4), so an AwesomeTTS update could break only that feature.
 
@@ -182,7 +201,7 @@ Set these in the `env` block of your MCP config.
 ```json
 "anki": {
   "command": "/Users/<you>/.local/bin/uvx",
-  "args": ["--from", "git+https://github.com/MeisamHakimi/anki-mcp-server", "anki-mcp-server"],
+  "args": ["--from", "anki-mcp-server @ https://github.com/MeisamHakimi/anki-mcp-server/archive/refs/heads/main.zip", "anki-mcp-server"],
   "env": { "ANKI_MCP_ALLOW_DELETE": "0" }
 }
 ```
@@ -191,11 +210,11 @@ Set these in the `env` block of your MCP config.
 
 | Problem | Fix |
 |---|---|
-| Claude doesn't list the **anki** tools | Use the **full path** to `uvx` in the config (step 3), then fully quit and reopen Claude. Claude Desktop → Settings → Developer shows the server's error. |
-| "Can't connect to AnkiConnect" | Install AnkiConnect (step 2) and restart Anki. To check, run `curl -s localhost:8765 -X POST -d '{"action":"version","version":6}'`; it should print `{"result": 6, ...}`. |
-| "Anki isn't installed / couldn't be found" | Install Anki (step 1). For a non-standard install, set `ANKI_LAUNCH_COMMAND`. |
+| Claude doesn't list the **anki** tools | Fully quit and reopen Claude. Run the installer again (it fixes the config), or check that the config uses the **full path** to `uvx`. Claude Desktop → Settings → Developer shows the server's error. |
+| "Can't connect to AnkiConnect" | Run the installer again, or install AnkiConnect manually and restart Anki. To check, run `curl -s localhost:8765 -X POST -d '{"action":"version","version":6}'`; it should print `{"result": 6, ...}`. |
+| "Anki isn't installed / couldn't be found" | Install Anki (step 1) and open it once. For a non-standard install, set `ANKI_LAUNCH_COMMAND`. |
 | "Started Anki, but AnkiConnect didn't answer" | Anki is waiting at the profile picker or a dialog; check its window. Otherwise AnkiConnect isn't installed. |
-| Slow or timing out on macOS | Run the App Nap command from step 2, then restart Anki. |
+| Slow or timing out on macOS | Run the App Nap command from *Manual setup*, then restart Anki. |
 | Audio fails | Built-in audio needs internet. If several requests fail, Google may be rate-limiting; try again later or with a smaller `limit`. |
 | An edit shows `not_applied` | The note was open in Anki's editor or Browse window. Close it and retry. |
 | "needs the Anki MCP Bridge add-on" | Ask Claude to install the bridge, then restart Anki. |
@@ -208,6 +227,7 @@ git clone https://github.com/MeisamHakimi/anki-mcp-server && cd anki-mcp-server
 python -m venv .venv && .venv/bin/pip install -e ".[dev]"
 .venv/bin/pytest                 # tests use fake AnkiConnect and bridge servers; Anki isn't needed
 python scripts/build_addon.py    # builds dist/anki_mcp_bridge.ankiaddon
+.venv/bin/anki-mcp-server setup --dry-run   # try the setup wizard without changing anything
 npx @modelcontextprotocol/inspector .venv/bin/anki-mcp-server   # try the tools interactively
 ```
 
