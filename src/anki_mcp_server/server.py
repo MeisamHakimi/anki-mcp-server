@@ -11,7 +11,9 @@ Safety model
 from __future__ import annotations
 
 import asyncio
+import base64
 import logging
+import re
 import sys
 from collections import Counter
 from typing import Any, Literal
@@ -20,7 +22,7 @@ from mcp.server.mcpserver import MCPServer
 from mcp.server.mcpserver.exceptions import ToolError
 from mcp.types import ToolAnnotations
 
-from . import __version__
+from . import __version__, bridge_install, tts
 from .anki import API_VERSION, Anki, Bridge
 from .config import Settings
 from .helpers import (
@@ -33,6 +35,7 @@ log = logging.getLogger("anki-mcp-server")
 MAX_NOTES_PER_CALL = 2000
 MAX_EDIT_NOTES = 500
 MAX_AUDIO_NOTES = 300
+AudioEngine = Literal["auto", "google", "awesometts"]
 
 READ = ToolAnnotations(readOnlyHint=True, openWorldHint=False)
 ADD = ToolAnnotations(readOnlyHint=False, destructiveHint=False, idempotentHint=True, openWorldHint=False)
@@ -84,6 +87,8 @@ def create_server(settings: Settings | None = None) -> MCPServer:
                 infos = await anki.invoke("notesInfo", notes=ids[:200])
                 common = Counter(n["modelName"] for n in infos if n).most_common(1)
                 model = common[0][0] if common else None
+        if (model is None or not str(model).strip()) and "Basic" in models:
+            model = "Basic"  # Anki's standard note type
         if model is None or not str(model).strip():
             raise ToolError(f"Pass `model` (note type). Available: {sorted(models)}")
         model = str(model).strip()
@@ -233,7 +238,7 @@ def create_server(settings: Settings | None = None) -> MCPServer:
             "profile": info.get("profile") if info else None,
             "decks": decks,
             "note_types": {m: (r.get("result") if isinstance(r, dict) else r) for m, r in zip(names, field_lists)},
-            "bridge_addon": info or "not installed (deck/profile rename and AwesomeTTS audio unavailable)",
+            "bridge_addon": info or "not installed (optional: enables profile rename and AwesomeTTS; install with anki_install_bridge)",
             "mode": "read-only" if settings.read_only else ("no-delete" if not settings.allow_delete else "full"),
         }
 
@@ -403,21 +408,62 @@ def create_server(settings: Settings | None = None) -> MCPServer:
                       header_row=bool(has_header), columns=columns, rows_read=len(rows), row_errors=row_errors)
         return result
 
+    async def awesometts_available() -> bool:
+        info = await bridge.info()
+        return bool(info and "generate_audio" in info.get("features", []))
+
+    async def google_audio(eligible: list[dict], dest_field: str, lang: str, tld: str) -> dict:
+        generated, failed, skipped = [], [], []
+        for e in eligible:
+            text = tts.speakable(e["text"])
+            if not text:
+                skipped.append({"note_id": e["note_id"], "reason": "no speakable text"})
+                continue
+            if len(text) > tts.MAX_CHARS:
+                skipped.append({"note_id": e["note_id"], "reason": f"text longer than {tts.MAX_CHARS} characters"})
+                continue
+            try:
+                audio = await asyncio.to_thread(tts.synthesize, text, lang, tld)
+            except Exception as ex:  # network errors, rate limiting, unsupported language
+                failed.append({"note_id": e["note_id"], "text": text[:80], "error": str(ex)[:300]})
+                if len(failed) >= 3 and not generated:
+                    break  # probably offline or blocked; don't hammer the service
+                continue
+            stored = await anki.invoke("storeMediaFile", filename=tts.media_filename(text, lang, tld),
+                                       data=base64.b64encode(audio).decode(), deleteExisting=False)
+            current = (await anki.invoke("notesInfo", notes=[e["note_id"]]))[0]
+            if not current or current["fields"][dest_field]["value"].strip():
+                skipped.append({"note_id": e["note_id"], "reason": f"{dest_field!r} was filled meanwhile; unchanged"})
+                continue
+            await anki.invoke("updateNoteFields", note={"id": e["note_id"], "fields": {dest_field: f"[sound:{stored}]"}})
+            generated.append({"note_id": e["note_id"], "text": text[:80], "file": stored})
+            await asyncio.sleep(0.2)  # be gentle with the free service
+        return {"engine": "google", "generated": generated, "skipped": skipped, "failed": failed,
+                "counts": {"generated": len(generated), "skipped": len(skipped), "failed": len(failed)}}
+
     @tool(ADD, "add")
     async def anki_generate_audio(
         query: str,
         source_field: str,
         dest_field: str,
+        engine: AudioEngine = "auto",
+        lang: str = "en",
+        accent: str = "com",
         preset: str | None = None,
         limit: int = 100,
         dry_run: bool = False,
     ) -> dict[str, Any]:
-        """Generate text-to-speech audio with the AwesomeTTS add-on for notes matching an Anki search.
-        Only notes whose dest_field is empty are processed; nothing is overwritten. Needs the bridge add-on.
+        """Add text-to-speech audio to notes matching an Anki search (e.g. 'deck:"Spanish" added:1').
+        Only notes whose dest_field is empty are processed; nothing is overwritten.
 
-        source_field: field whose text is spoken. dest_field: field that receives [sound:...].
-        preset: an AwesomeTTS preset name (or "group:<name>"); default = the voice last used in AwesomeTTS.
-        Uses your AwesomeTTS service, so paid services count against your quota.
+        source_field: field whose text is spoken. dest_field: field that receives [sound:...] (e.g. "Back" or an
+          "Audio" field). Works out of the box.
+        engine: "google" = built-in, free Google Translate voices, needs internet; the text is sent to Google.
+          "awesometts" = your AwesomeTTS add-on voice (needs AwesomeTTS + the bridge add-on).
+          "auto" (default) = AwesomeTTS if available, else google.
+        lang: language code for google (e.g. "en", "es", "fr", "de", "ja", "zh-CN"); see anki_tts_status.
+        accent: Google domain for regional accents with lang "en": "com" (US), "co.uk", "com.au", "ca", "co.in".
+        preset: AwesomeTTS preset name (or "group:<name>"); default = the voice last used in AwesomeTTS.
         """
         if not isinstance(query, str) or not query.strip():
             raise ToolError("query must be a non-empty Anki search string.")
@@ -428,6 +474,13 @@ def create_server(settings: Settings | None = None) -> MCPServer:
                 raise ToolError(f"{label} must be a non-empty field name.")
         if source_field == dest_field:
             raise ToolError("source_field and dest_field must differ.")
+        if engine == "auto":
+            engine = "awesometts" if await awesometts_available() else "google"
+        if engine == "google":
+            if lang not in tts.languages():
+                raise ToolError(f"Unsupported language {lang!r}. Supported: {sorted(tts.languages())}")
+            if not isinstance(accent, str) or not re.fullmatch(r"[a-z]{2,3}(\.[a-z]{2,3})?", accent):
+                raise ToolError("accent must be a Google domain suffix like 'com', 'co.uk' or 'com.au'.")
         ids = await anki.invoke("findNotes", query=query.strip())
         infos = [n for n in (await anki.invoke("notesInfo", notes=ids) if ids else []) if n]
         eligible, skipped = [], []
@@ -441,23 +494,35 @@ def create_server(settings: Settings | None = None) -> MCPServer:
                 skipped.append({"note_id": n["noteId"], "reason": f"{source_field!r} is empty"})
             else:
                 eligible.append({"note_id": n["noteId"], "text": f[source_field]["value"]})
-        summary: dict[str, Any] = {"query": query, "matched": len(ids), "eligible": len(eligible[:limit]),
-                                   "over_limit": max(0, len(eligible) - limit), "skipped": skipped,
-                                   "source_field": source_field, "dest_field": dest_field, "dry_run": dry_run}
+        summary: dict[str, Any] = {"query": query, "engine": engine, "matched": len(ids),
+                                   "eligible": len(eligible[:limit]), "over_limit": max(0, len(eligible) - limit),
+                                   "skipped_before_generation": skipped, "source_field": source_field,
+                                   "dest_field": dest_field, "dry_run": dry_run}
         eligible = eligible[:limit]
         if dry_run or not eligible:
-            summary["would_generate" if dry_run else "generated"] = eligible
+            summary["would_generate" if dry_run else "generated"] = [
+                {"note_id": e["note_id"], "text": tts.speakable(e["text"])[:80]} for e in eligible]
             return summary
-        summary["result"] = await bridge.call(
-            "generate", timeout=min(60.0 + 15.0 * len(eligible), 1000.0), note_ids=[e["note_id"] for e in eligible],
-            source_field=source_field, dest_field=dest_field, preset=preset)
+        if engine == "google":
+            summary["result"] = await google_audio(eligible, dest_field, lang, accent)
+        else:
+            summary["result"] = await bridge.call(
+                "generate", timeout=min(60.0 + 15.0 * len(eligible), 1000.0), note_ids=[e["note_id"] for e in eligible],
+                source_field=source_field, dest_field=dest_field, preset=preset)
         return summary
 
     @tool(READ, "read")
     async def anki_tts_status() -> dict[str, Any]:
-        """AwesomeTTS details via the bridge add-on: version, preset/group names, last used service and fields.
-        (Never returns voice options or API keys.)"""
-        return await bridge.call("tts_status")
+        """Which text-to-speech engines are available: built-in Google voices (with language codes) and, if the
+        AwesomeTTS add-on + bridge are installed, its presets and last used voice (never options or API keys)."""
+        out: dict[str, Any] = {"google": {"available": True, "needs": "internet; the text is sent to Google",
+                                          "languages": tts.languages()}}
+        if await awesometts_available():
+            out["awesometts"] = await bridge.call("tts_status")
+        else:
+            out["awesometts"] = "not available (needs the AwesomeTTS add-on and the Anki MCP Bridge add-on)"
+        out["default_engine"] = "awesometts" if isinstance(out["awesometts"], dict) else "google"
+        return out
 
     @tool(ToolAnnotations(readOnlyHint=False, destructiveHint=False, idempotentHint=True, openWorldHint=True), "add")
     async def anki_sync() -> dict[str, Any]:
@@ -573,8 +638,9 @@ def create_server(settings: Settings | None = None) -> MCPServer:
 
     @tool(CHANGE, "change")
     async def anki_rename_deck(name: str, new_name: str, confirm_token: str | None = None) -> dict[str, Any]:
-        """Rename a deck (subdecks follow; cards, history and options are kept). "A::B" nests it under A.
-        Two-step: preview + token, then call again with confirm_token. Needs the bridge add-on."""
+        """Rename a deck (subdecks follow; cards, review history and option presets are kept). "A::B" nests it
+        under A. Two-step: preview + token, then call again with confirm_token. Uses the bridge add-on if
+        installed, otherwise moves the cards to a new deck with the new name."""
         name = await require_deck(name)
         new_name = validate_deck_name(new_name)
         if new_name == name:
@@ -590,7 +656,32 @@ def create_server(settings: Settings | None = None) -> MCPServer:
                 "rename": {d: new_name + d[len(name):] for d in tree}, "notes": len(note_ids), "cards": n_cards})
         confirm.check("rename_deck", payload, confirm_token)
         write_backup(settings.backup_dir, "rename-deck", payload)
-        return {"renamed": True, **await bridge.call("rename_deck", name=name, new_name=new_name)}
+        if await bridge.info():
+            return {"renamed": True, "method": "bridge", **await bridge.call("rename_deck", name=name, new_name=new_name)}
+        if new_name.lower() == name.lower():
+            raise ToolError("Changing only the capitalization of a deck name needs the Anki MCP Bridge add-on "
+                            "(install it with anki_install_bridge).")
+        # Without the bridge: recreate the tree under the new name, keep each deck's options preset, move the cards
+        # (review history stays with the cards), and remove the old decks only once they're verified empty.
+        moved = 0
+        for d in tree:
+            new_d = new_name + d[len(name):]
+            await anki.invoke("createDeck", deck=new_d)
+            cfg = await anki.invoke("getDeckConfig", deck=d)
+            if isinstance(cfg, dict) and cfg.get("id") is not None:
+                await anki.invoke("setDeckConfigId", decks=[new_d], configId=cfg["id"])
+            q = search_quote(d)
+            cards = await anki.invoke("findCards", query=f"deck:{q} -deck:{q[:-1]}::*\"")
+            if cards:
+                await anki.invoke("changeDeck", cards=cards, deck=new_d)
+                moved += len(cards)
+        left = await anki.invoke("findCards", query=f"deck:{search_quote(name)}")
+        if left:
+            raise ToolError(f"{len(left)} cards are still in {name!r}, so the old deck was kept. Nothing was lost; "
+                            f"the cards moved so far are in {new_name!r}.")
+        await anki.invoke("deleteDecks", decks=[name], cardsToo=True)  # verified empty above
+        return {"renamed": True, "method": "move", "old_name": name, "new_name": new_name, "cards_moved": moved,
+                "note": "Deck descriptions aren't carried over without the bridge add-on."}
 
     @tool(CHANGE, "change")
     async def anki_rename_profile(new_name: str, confirm_token: str | None = None) -> dict[str, Any]:
@@ -637,6 +728,27 @@ def create_server(settings: Settings | None = None) -> MCPServer:
             raise ToolError(f"Profile rename failed: {info['last_rename'].get('error')}. "
                             f"Anki reopened profile {info['current']!r}; nothing was lost.")
         return {"renamed": True, "old_name": current, "new_name": info["current"]}
+
+    @tool(ToolAnnotations(readOnlyHint=False, destructiveHint=False, idempotentHint=True, openWorldHint=False), "change")
+    async def anki_install_bridge(confirm_token: str | None = None) -> dict[str, Any]:
+        """Install (or update) the optional Anki MCP Bridge add-on into Anki's add-ons folder. It enables
+        renaming the Anki profile, exact deck renames, and AwesomeTTS audio. Two-step: preview + token. The user
+        must restart Anki afterwards."""
+        p = bridge_install.plan()
+        if not p["anki_folder_found"]:
+            raise ToolError(f"Anki's add-ons folder wasn't found at {p['anki_folder']}. Open Anki once first, or set "
+                            "ANKI_BASE to your Anki data folder (Anki: Tools > Add-ons > View Files).")
+        if confirm_token is None:
+            return confirm.preview("install_bridge", p, {
+                **p, "what_happens": "Copies the bundled add-on files into the folder above. Restart Anki afterwards."
+                + (f" Disable/remove these conflicting add-ons first: {p['conflicting_addons']}." if p["conflicting_addons"] else "")})
+        confirm.check("install_bridge", p, confirm_token)
+        try:
+            result = await asyncio.to_thread(bridge_install.install)
+        except (OSError, RuntimeError) as e:
+            raise ToolError(f"Installing the bridge failed: {e}") from None
+        result["next_step"] = "Restart Anki (quit it completely and reopen) to load the bridge."
+        return result
 
     # ---------- delete (preview -> confirm) ----------
 
@@ -691,7 +803,32 @@ def create_server(settings: Settings | None = None) -> MCPServer:
     return mcp
 
 
+def _cli_install_bridge(argv: list[str]) -> None:
+    p = bridge_install.plan()
+    print(f"Anki folder:     {p['anki_folder']} ({'found' if p['anki_folder_found'] else 'NOT FOUND'})")
+    print(f"Install to:      {p['target']}")
+    print(f"Installed:       {p['installed_version'] or '-'}   bundled: {p['bundled_version']}")
+    if p["conflicting_addons"]:
+        print(f"Conflicts:       {p['conflicting_addons']} (disable/remove them in Anki first)")
+    if "--yes" not in argv and input("Install? [y/N] ").strip().lower() != "y":
+        sys.exit("Cancelled.")
+    try:
+        bridge_install.install()
+    except (OSError, RuntimeError) as e:
+        sys.exit(f"Failed: {e}")
+    print("Installed. Restart Anki to load it.")
+
+
 def main() -> None:
+    argv = sys.argv[1:]
+    if argv[:1] == ["install-bridge"]:
+        _cli_install_bridge(argv[1:])
+        return
+    if argv[:1] in (["--version"], ["-V"]):
+        print(__version__)
+        return
+    if argv:
+        sys.exit("usage: anki-mcp-server [install-bridge [--yes] | --version]   (no arguments: run the MCP server on stdio)")
     logging.basicConfig(stream=sys.stderr, level=logging.INFO, format="%(levelname)s anki-mcp-server: %(message)s")
     try:
         settings = Settings.from_env()

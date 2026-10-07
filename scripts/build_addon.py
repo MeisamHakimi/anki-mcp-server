@@ -1,4 +1,4 @@
-"""Package anki_addon/anki_mcp_bridge as dist/anki_mcp_bridge.ankiaddon (double-click to install in Anki)."""
+"""Package src/anki_mcp_server/bridge_addon/anki_mcp_bridge as dist/anki_mcp_bridge.ankiaddon (double-click to install in Anki)."""
 
 import json
 import time
@@ -6,7 +6,7 @@ import zipfile
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-SRC = ROOT / "anki_addon" / "anki_mcp_bridge"
+SRC = ROOT / "src" / "anki_mcp_server" / "bridge_addon" / "anki_mcp_bridge"
 OUT = ROOT / "dist" / "anki_mcp_bridge.ankiaddon"
 
 

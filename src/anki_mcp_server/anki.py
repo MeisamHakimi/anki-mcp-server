@@ -29,7 +29,13 @@ ALLOWED_ACTIONS = frozenset({
     "findNotes", "findCards", "notesInfo", "cardsInfo", "guiBrowse", "sync",
     "createDeck", "canAddNotesWithErrorDetail", "canAddNotes", "addNote", "multi",
     "updateNoteFields", "addTags", "removeTags", "changeDeck", "deleteNotes", "deleteDecks", "exportPackage",
+    "storeMediaFile", "getDeckConfig", "setDeckConfigId",
 })
+
+SETUP_HINT = (
+    "Setup: 1) install Anki Desktop from https://apps.ankiweb.net and open it once; 2) in Anki choose "
+    "Tools > Add-ons > Get Add-ons..., enter code 2055492159 (AnkiConnect), click OK; 3) restart Anki."
+)
 
 
 async def port_open(url: str) -> bool:
@@ -84,22 +90,32 @@ class Anki:
                 return "running"
             cmd = launch_command(self.settings)
             if not cmd:
-                return None
+                raise ToolError(
+                    "Anki isn't running and couldn't be found on this computer. " + SETUP_HINT +
+                    " If Anki is installed somewhere unusual, set ANKI_LAUNCH_COMMAND (e.g. 'flatpak run net.ankiweb.Anki')."
+                )
             log.info("AnkiConnect not reachable; starting Anki: %s", cmd)
             try:
-                kwargs: dict[str, Any] = {"stdin": subprocess.DEVNULL, "stdout": subprocess.DEVNULL,
-                                          "stderr": subprocess.DEVNULL}
-                if sys.platform.startswith("win"):
-                    kwargs["creationflags"] = getattr(subprocess, "DETACHED_PROCESS", 0)
+                if cmd[0] == "/usr/bin/open":
+                    # macOS `open` returns at once; a non-zero exit means the app isn't installed.
+                    done = subprocess.run(cmd, capture_output=True, timeout=30)  # noqa: S603
+                    if done.returncode != 0:
+                        raise ToolError("Anki isn't installed (macOS couldn't find the Anki app). " + SETUP_HINT)
                 else:
-                    kwargs["start_new_session"] = True
-                subprocess.Popen(cmd, **kwargs)  # noqa: S603 - fixed command or user-configured one
-            except OSError as e:
-                raise ToolError(f"Couldn't start Anki with {cmd}: {e}. Start it manually or set ANKI_LAUNCH_COMMAND.") from None
+                    kwargs: dict[str, Any] = {"stdin": subprocess.DEVNULL, "stdout": subprocess.DEVNULL,
+                                              "stderr": subprocess.DEVNULL}
+                    if sys.platform.startswith("win"):
+                        kwargs["creationflags"] = getattr(subprocess, "DETACHED_PROCESS", 0)
+                    else:
+                        kwargs["start_new_session"] = True
+                    subprocess.Popen(cmd, **kwargs)  # noqa: S603 - fixed command or user-configured one
+            except (OSError, subprocess.SubprocessError) as e:
+                raise ToolError(f"Couldn't start Anki with {cmd}: {e}. " + SETUP_HINT) from None
             if not await wait_for_port(self.settings.anki_connect_url, LAUNCH_WAIT_SECONDS):
                 raise ToolError(
-                    f"Started Anki, but AnkiConnect didn't answer within {LAUNCH_WAIT_SECONDS}s. Anki may be waiting "
-                    "at the profile picker or a dialog, or AnkiConnect isn't installed. Check the Anki window."
+                    f"Started Anki, but AnkiConnect didn't answer within {LAUNCH_WAIT_SECONDS}s. Either Anki is waiting "
+                    "at the profile picker or a dialog (check its window), or AnkiConnect isn't installed: in Anki "
+                    "choose Tools > Add-ons > Get Add-ons..., enter 2055492159, then restart Anki."
                 )
             await asyncio.sleep(2.0)  # let the profile and add-ons finish loading
             return "launched"
@@ -122,8 +138,8 @@ class Anki:
             if _retry and await self.ensure_running():
                 return await self.invoke(action, timeout, _retry=False, **params)
             raise ToolError(
-                f"Can't connect to AnkiConnect at {self.settings.anki_connect_url}. Make sure Anki is running and the "
-                "AnkiConnect add-on (code 2055492159) is installed; restart Anki after installing it."
+                f"Can't connect to AnkiConnect at {self.settings.anki_connect_url}: Anki isn't running or the "
+                "AnkiConnect add-on (code 2055492159) isn't installed. " + SETUP_HINT
             ) from None
         except httpx.TimeoutException:
             raise ToolError(
@@ -162,7 +178,7 @@ class Bridge:
                 return await self.call(action, timeout, _retry=False, **params)
             raise ToolError(
                 f"This needs the 'Anki MCP Bridge' add-on, which isn't reachable at {self.settings.bridge_url}. "
-                "Install it (see the README), then restart Anki."
+                "Install it with the anki_install_bridge tool (or run `anki-mcp-server install-bridge`), then restart Anki."
             ) from None
         except httpx.TimeoutException:
             raise ToolError("The Anki MCP Bridge add-on didn't answer in time; Anki may still be working.") from None

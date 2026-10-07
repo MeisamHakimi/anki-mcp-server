@@ -42,13 +42,19 @@ class FakeAnki:
     def _find(self, query: str) -> list[int]:
         q = query.strip()
         ids = list(self.notes)
-        for m in re.finditer(r'deck:"((?:[^"\\]|\\.)*)"|deck:(\S+)|nid:(\d+)|tag:(\S+)|(\w+):([^\s"]+)', q):
-            deck, deck2, nid, tag, field, value = m.groups()
+        for m in re.finditer(r'(-?)deck:"((?:[^"\\]|\\.)*)"|(-?)deck:(\S+)|nid:(\d+)|tag:(\S+)|(\w+):([^\s"]+)', q):
+            neg1, deck, neg2, deck2, nid, tag, field, value = m.groups()
+            neg = bool(neg1 or neg2)
             deck = deck if deck is not None else deck2
             if deck is not None:
-                deck = re.sub(r"\\(.)", r"\1", deck)
-                if deck != "*":
-                    ids = [i for i in ids if self.notes[i]["deck"] == deck or self.notes[i]["deck"].startswith(deck + "::")]
+                if deck == "*":
+                    continue
+                # unescaped "*" is a wildcard; "\*" a literal star
+                pat = "^" + "".join(".*" if part == "*" else re.escape(part.replace("\\", ""))
+                                    for part in re.split(r"(?<!\\)(\*)", deck)) + "$"
+                def in_deck(name: str) -> bool:
+                    return bool(re.match(pat, name)) or (not deck.endswith("*") and bool(re.match(pat[:-1] + "::", name)))
+                ids = [i for i in ids if in_deck(self.notes[i]["deck"]) != neg]
             elif nid:
                 ids = [i for i in ids if i == int(nid)]
             elif tag:
@@ -134,6 +140,18 @@ class FakeAnki:
                     for i in [i for i, n in self.notes.items() if n["deck"] == name]:
                         del self.notes[i]
             return None
+        if action == "storeMediaFile":
+            self.media = getattr(self, "media", {})
+            name = p["filename"]
+            self.media[name] = p["data"]
+            return name
+        if action == "getDeckConfig":
+            return {"id": 7, "name": "My preset"} if p["deck"] in self.decks else False
+        if action == "setDeckConfigId":
+            self.deck_conf = getattr(self, "deck_conf", {})
+            for d in p["decks"]:
+                self.deck_conf[d] = p["configId"]
+            return True
         if action == "exportPackage":
             with open(p["path"], "wb") as f:
                 f.write(b"PK fake apkg")

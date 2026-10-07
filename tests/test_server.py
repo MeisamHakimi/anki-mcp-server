@@ -112,7 +112,8 @@ async def test_add_notes_validation(s):
     assert "does not exist" in await s.err("anki_add_notes", deck="Nope", model="Basic", notes=[{"Front": "x"}])
     assert "doesn't match any field" in await s.err("anki_add_notes", deck="Spanish", model="Basic", notes=[{"Bogus": "x"}])
     assert "single words" in await s.err("anki_add_notes", deck="Spanish", model="Basic", notes=[{"Front": "x"}], tags=["two words"])
-    assert "Pass `model`" in await s.err("anki_add_notes", deck="Spanish", notes=[{"Front": "x"}])  # empty deck, no default
+    r = await s.ok("anki_add_notes", deck="Spanish", notes=[{"Front": "x", "Back": "y"}])  # empty deck -> Basic
+    assert r["model"] == "Basic"
 
 
 async def test_import_tsv_with_header_rules_and_prefix_fields(s, fake, tmp_path):
@@ -257,3 +258,73 @@ def test_only_loopback_urls_allowed():
         Settings(anki_connect_url="http://example.com:8765")
     with pytest.raises(ValueError):
         Settings(bridge_url="http://192.168.1.5:8766")
+
+
+# ---------- audio, rename without bridge, bridge install ----------
+
+async def test_google_audio_fills_only_empty_fields(s, fake, monkeypatch):
+    from anki_mcp_server import tts
+    spoken = []
+    monkeypatch.setattr(tts, "synthesize", lambda text, lang, tld: spoken.append((text, lang, tld)) or b"ID3fake")
+    await s.ok("anki_create_deck", name="Vocab")
+    await s.ok("anki_add_notes", deck="Vocab", model="Vocab", notes=[
+        {"Word": "resilient", "Meaning": "tough", "Example sentence": ""},
+        {"Word": "nocturnal", "Meaning": "[sound:existing.mp3]"},
+    ], allow_html=True)
+    st = await s.ok("anki_tts_status")
+    assert st["default_engine"] == "google" and "en" in st["google"]["languages"]
+    p = await s.ok("anki_generate_audio", query='deck:"Vocab"', source_field="Word", dest_field="Meaning", dry_run=True)
+    assert p["engine"] == "google" and p["eligible"] == 0  # both Meaning fields are filled
+    r = await s.ok("anki_generate_audio", query='deck:"Vocab"', source_field="Word", dest_field="Example sentence",
+                   lang="en", accent="co.uk")
+    assert r["result"]["counts"] == {"generated": 2, "skipped": 0, "failed": 0}
+    assert sorted(spoken) == [("nocturnal", "en", "co.uk"), ("resilient", "en", "co.uk")]
+    again = await s.ok("anki_generate_audio", query='deck:"Vocab"', source_field="Word", dest_field="Example sentence")
+    assert again["eligible"] == 0 and len(spoken) == 2  # already filled -> nothing regenerated
+    note = next(n for n in fake.notes.values() if n["fields"]["Word"] == "resilient")
+    assert note["fields"]["Example sentence"].startswith("[sound:anki-mcp-tts-en-")
+    assert "Unsupported language" in await s.err("anki_generate_audio", query="deck:*", source_field="Word",
+                                                 dest_field="Meaning", engine="google", lang="xx")
+
+
+def test_speakable_text():
+    from anki_mcp_server.tts import speakable
+    assert speakable("Hello<br>world [sound:a.mp3] &amp; <b>more</b>") == "Hello world & more"
+    assert speakable("{{c1::Paris::city}} is in France") == "Paris is in France"
+
+
+async def test_rename_deck_without_bridge(settings, fake, tmp_path):
+    from dataclasses import replace
+    st = replace(settings, bridge_url="http://127.0.0.1:9")  # nothing listens there
+    async with Client(create_server(st)) as c:
+        s = Session(c)
+        await seed(s, deck="Lang::Spanish")
+        await s.ok("anki_create_deck", name="Lang::Spanish::Verbs")
+        nid = next(iter(fake.notes))
+        fake.notes[nid]["deck"] = "Lang::Spanish::Verbs"
+        p = await s.ok("anki_rename_deck", name="Lang::Spanish", new_name="Español")
+        r = await s.ok("anki_rename_deck", name="Lang::Spanish", new_name="Español", confirm_token=p["confirm_token"])
+        assert r["method"] == "move" and r["cards_moved"] == 2
+        assert {n["deck"] for n in fake.notes.values()} == {"Español", "Español::Verbs"}
+        assert "Lang::Spanish" not in fake.decks and fake.deck_conf["Español"] == 7
+        p = await s.ok("anki_rename_deck", name="Español", new_name="español")
+        assert "capitalization" in await s.err("anki_rename_deck", name="Español", new_name="español",
+                                                confirm_token=p["confirm_token"])
+
+
+async def test_install_bridge(s, tmp_path, monkeypatch):
+    base = tmp_path / "Anki2"
+    (base / "addons21" / "old_copy").mkdir(parents=True)
+    (base / "addons21" / "old_copy" / "__init__.py").write_text('REQUIRED_HEADER = "X-Anki-MCP"\n')
+    monkeypatch.setenv("ANKI_BASE", str(base))
+    p = await s.ok("anki_install_bridge")
+    assert p["conflicting_addons"] == ["old_copy"] and p["installed_version"] is None
+    r = await s.ok("anki_install_bridge", confirm_token=p["confirm_token"])
+    target = base / "addons21" / "anki_mcp_bridge"
+    assert r["installed"] and (target / "__init__.py").is_file() and (target / "config.json").is_file()
+    assert json.loads((target / "meta.json").read_text())["name"] == "Anki MCP Bridge"
+
+
+async def test_missing_anki_folder_for_bridge(s, tmp_path, monkeypatch):
+    monkeypatch.setenv("ANKI_BASE", str(tmp_path / "nope"))
+    assert "Open Anki once first" in await s.err("anki_install_bridge")
