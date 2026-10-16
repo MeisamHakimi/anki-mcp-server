@@ -7,6 +7,7 @@
 - Published on **PyPI** (`uvx anki-mcp-server`), released automatically by GitHub Actions with trusted publishing
 - Every tool now has a `title`; the audio tool is marked as reaching an outside service
 - `setup --skip-claude` for plugin users
+- The plugin ships a `uv.lock` (exact versions and hashes for every dependency) and starts the server with `uv run --locked`
 - Privacy policy (`PRIVACY.md`), security policy (`SECURITY.md`) and an icon
 
 ## 0.1.0 (2026-10-07)

@@ -26,6 +26,9 @@ jobs:
         if: matrix.os == 'ubuntu-latest' && matrix.python-version == '3.12'
         with:
           node-version: "20"
+      - name: Check the plugin's lockfile is up to date
+        if: matrix.os == 'ubuntu-latest' && matrix.python-version == '3.12'
+        run: python -m pip install uv && uv lock --check --project plugins/anki-flashcards
       - name: Build and validate the Claude Desktop extension
         run: python scripts/build_mcpb.py
         if: matrix.os == 'ubuntu-latest' && matrix.python-version == '3.12'

@@ -1,0 +1,18 @@
+# Pins the exact anki-mcp-server release and every dependency it needs. uv.lock (next to this file) records
+# each package's exact version, source and hashes; the plugin's MCP server runs with `uv run --locked`.
+# Regenerate after changing the version: uv lock --project plugins/anki-flashcards
+[project]
+name = "anki-flashcards-plugin"
+version = "0.2.0"
+requires-python = ">=3.10"
+dependencies = ["anki-mcp-server==0.2.0"]
+
+[tool.uv]
+package = false
+# Platforms Claude Code and Cowork run on; keeps the lockfile small.
+environments = [
+    "sys_platform == 'darwin'",
+    "sys_platform == 'win32'",
+    "sys_platform == 'linux' and platform_machine == 'x86_64'",
+    "sys_platform == 'linux' and platform_machine == 'aarch64'",
+]

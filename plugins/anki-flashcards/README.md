@@ -6,7 +6,7 @@ This is an unofficial, community-maintained project. It isn't affiliated with or
 
 ## What it contains
 
-- **MCP server `anki`**: runs [`anki-mcp-server`](https://pypi.org/project/anki-mcp-server/) version 0.2.0 on your computer with `uvx anki-mcp-server==0.2.0`. It talks only to Anki on `127.0.0.1` through the AnkiConnect add-on.
+- **MCP server `anki`**: runs [`anki-mcp-server`](https://pypi.org/project/anki-mcp-server/) 0.2.0 on your computer with `uv run --locked`. The bundled `uv.lock` pins the server and every dependency to exact versions with hashes, all from PyPI. It talks only to Anki on `127.0.0.1` through the AnkiConnect add-on.
 - **Skill `anki-flashcards`**: tells Claude how to use the tools well. It checks your real deck and field names first, previews imports with a dry run, and asks for your approval before any edit or delete.
 
 The server runs on your computer, so it works in **Claude Code** and in **Cowork** sessions on your computer. Regular claude.ai chat doesn't start local servers. For the Claude Desktop chat, use the one-click desktop extension or the installer from the [main README](https://github.com/MeisamHakimi/anki-mcp-server#readme).
@@ -38,7 +38,7 @@ External destinations are used only in these cases:
 
 - The built-in text-to-speech sends the text being spoken to **Google's** text-to-speech service. This only happens when you add audio with the default engine.
 - **AnkiWeb**, only when you sync.
-- **PyPI**, to download the server package when it first starts.
+- **PyPI**, to download the locked server package and its dependencies when it first starts.
 - **AnkiWeb**, to download AnkiConnect, only if you run `setup` and agree.
 
 Full policy: <https://github.com/MeisamHakimi/anki-mcp-server/blob/main/PRIVACY.md>
