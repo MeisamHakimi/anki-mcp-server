@@ -5,7 +5,7 @@
 # before every change. Extra arguments are passed to the wizard (e.g. `sh install.sh --dry-run`).
 set -eu
 
-SOURCE="${ANKI_MCP_SOURCE:-anki-mcp-server @ https://github.com/MeisamHakimi/anki-mcp-server/archive/refs/heads/main.zip}"
+SOURCE="${ANKI_MCP_SOURCE:-anki-mcp-server}"
 
 find_uvx() {
   for c in "$(command -v uvx 2>/dev/null || true)" "$HOME/.local/bin/uvx" "$HOME/.cargo/bin/uvx" /opt/homebrew/bin/uvx /usr/local/bin/uvx; do

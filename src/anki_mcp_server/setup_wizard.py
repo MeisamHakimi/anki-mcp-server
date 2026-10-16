@@ -32,8 +32,8 @@ SERVER_NAME = "anki"
 
 
 def package_source() -> str:
-    """What uvx should run: a GitHub zip of this release (no git needed). ANKI_MCP_SOURCE overrides it."""
-    return os.environ.get("ANKI_MCP_SOURCE") or f"anki-mcp-server @ {REPO}/archive/refs/tags/v{__version__}.zip"
+    """What uvx should run: this exact release from PyPI. ANKI_MCP_SOURCE overrides it (e.g. a local checkout)."""
+    return os.environ.get("ANKI_MCP_SOURCE") or f"anki-mcp-server=={__version__}"
 
 
 # ---------- detection ----------
@@ -204,6 +204,7 @@ class Wizard:
     yes: bool = False
     dry_run: bool = False
     bridge: bool | None = None  # None = ask (default yes if AwesomeTTS is installed)
+    skip_claude: bool = False  # e.g. when the Claude plugin already provides the server
     out: Callable[[str], None] = print
     ask_fn: Callable[[str], str] = input
     notes: list[str] = field(default_factory=list)
@@ -309,6 +310,12 @@ class Wizard:
 
         # 5. Claude
         self.step("5/5 Connect to Claude")
+        if self.skip_claude:
+            self.out("Skipped (--skip-claude).")
+            self.out("\nDone." if not self.notes else "\nDone, with a few things left for you:")
+            for n in self.notes:
+                self.out(f"  - {n}")
+            return 0
         command = server_command()
         if not find_uvx():
             self.notes.append("uvx wasn't found, so Claude will run this installation directly: " + command[0])
@@ -413,7 +420,8 @@ class Wizard:
 
 def main(argv: list[str]) -> int:
     if "-h" in argv or "--help" in argv:
-        print("usage: anki-mcp-server setup [--yes] [--dry-run] [--bridge | --no-bridge]")
+        print("usage: anki-mcp-server setup [--yes] [--dry-run] [--bridge | --no-bridge] [--skip-claude]")
         return 0
     bridge = True if "--bridge" in argv else (False if "--no-bridge" in argv else None)
-    return Wizard(yes="--yes" in argv, dry_run="--dry-run" in argv, bridge=bridge).run()
+    return Wizard(yes="--yes" in argv, dry_run="--dry-run" in argv, bridge=bridge,
+                  skip_claude="--skip-claude" in argv).run()

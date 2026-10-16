@@ -57,10 +57,10 @@ def test_claude_desktop_config_created_and_invalid(tmp_path):
         sw.add_to_claude_desktop(bad, ["/x"])
 
 
-def test_package_source_is_a_zip_without_git(monkeypatch):
+def test_package_source_is_pinned_pypi_release(monkeypatch):
+    from anki_mcp_server import __version__
     monkeypatch.delenv("ANKI_MCP_SOURCE", raising=False)
-    src = sw.package_source()
-    assert src.startswith("anki-mcp-server @ https://github.com/") and src.endswith(".zip") and "git+" not in src
+    assert sw.package_source() == f"anki-mcp-server=={__version__}"
 
 
 def test_wizard_end_to_end(tmp_path, monkeypatch):

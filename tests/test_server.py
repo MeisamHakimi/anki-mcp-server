@@ -243,6 +243,9 @@ async def test_tool_annotations(s):
     assert tools["anki_find_notes"].annotations.read_only_hint is True
     assert tools["anki_delete_deck"].annotations.destructive_hint is True
     assert tools["anki_add_notes"].annotations.destructive_hint is False
+    for t in tools.values():  # the directory requires a title and a read-only/destructive hint on every tool
+        assert t.title and t.annotations.title == t.title
+        assert t.annotations.read_only_hint is True or t.annotations.destructive_hint is not None
 
 
 async def test_connection_refused_message(tmp_path):

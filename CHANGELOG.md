@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.2.0 (2026-10-16)
+
+- **Claude plugin** "Anki Flashcards (community)" in `plugins/anki-flashcards` (MCP server and a workflow skill), with a marketplace file so it can be added with `/plugin marketplace add MeisamHakimi/anki-mcp-server`
+- **Claude Desktop extension** (`anki-mcp-server.mcpb`) for one-click installs; Claude Desktop manages Python itself. Settings for read-only mode and deleting
+- Published on **PyPI** (`uvx anki-mcp-server`), released automatically by GitHub Actions with trusted publishing
+- Every tool now has a `title`; the audio tool is marked as reaching an outside service
+- `setup --skip-claude` for plugin users
+- Privacy policy (`PRIVACY.md`), security policy (`SECURITY.md`) and an icon
+
 ## 0.1.0 (2026-10-07)
 
 First release.

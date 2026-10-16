@@ -1,0 +1,18 @@
+{
+  "name": "anki-flashcards",
+  "displayName": "Anki Flashcards (community)",
+  "version": "0.2.0",
+  "description": "Create, import, search, edit and organize Anki flashcards, add pronunciation audio, and sync to your phone. Talks to Anki Desktop on your computer through the AnkiConnect add-on. Unofficial community project.",
+  "author": {
+    "name": "MeisamHakimi",
+    "url": "https://github.com/MeisamHakimi"
+  },
+  "homepage": "https://github.com/MeisamHakimi/anki-mcp-server",
+  "repository": "https://github.com/MeisamHakimi/anki-mcp-server",
+  "license": "MIT",
+  "keywords": ["anki", "flashcards", "spaced-repetition", "language-learning", "vocabulary", "study"],
+  "icon": "./icon.png",
+  "documentationUrl": "https://github.com/MeisamHakimi/anki-mcp-server#readme",
+  "supportUrl": "https://github.com/MeisamHakimi/anki-mcp-server/issues",
+  "privacyPolicyUrl": "https://github.com/MeisamHakimi/anki-mcp-server/blob/main/PRIVACY.md"
+}

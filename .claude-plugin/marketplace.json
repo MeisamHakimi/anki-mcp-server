@@ -1,0 +1,15 @@
+{
+  "name": "anki-mcp-server",
+  "description": "Anki flashcards for Claude: create, import, edit, organize and add audio to your Anki cards.",
+  "owner": {
+    "name": "MeisamHakimi",
+    "url": "https://github.com/MeisamHakimi"
+  },
+  "plugins": [
+    {
+      "name": "anki-flashcards",
+      "source": "./plugins/anki-flashcards",
+      "description": "Create, import, search, edit and organize Anki flashcards, add pronunciation audio, and sync to your phone."
+    }
+  ]
+}

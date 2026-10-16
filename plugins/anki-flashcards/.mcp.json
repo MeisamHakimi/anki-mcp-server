@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "anki": {
+      "command": "uvx",
+      "args": ["anki-mcp-server==0.2.0"]
+    }
+  }
+}

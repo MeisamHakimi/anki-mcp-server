@@ -3,7 +3,7 @@
 # Installs uv if needed (https://docs.astral.sh/uv/), then runs the interactive setup wizard, which asks
 # before every change.
 $ErrorActionPreference = "Stop"
-$Source = if ($env:ANKI_MCP_SOURCE) { $env:ANKI_MCP_SOURCE } else { "anki-mcp-server @ https://github.com/MeisamHakimi/anki-mcp-server/archive/refs/heads/main.zip" }
+$Source = if ($env:ANKI_MCP_SOURCE) { $env:ANKI_MCP_SOURCE } else { "anki-mcp-server" }
 
 $uvx = Get-Command uvx -ErrorAction SilentlyContinue
 if (-not $uvx) {

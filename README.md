@@ -12,7 +12,7 @@ It works on **macOS, Windows and Linux**, with Anki Desktop and the free [AnkiCo
 
 ---
 
-## Quick start
+## Install
 
 ### 1. Install Anki Desktop (once)
 
@@ -21,11 +21,42 @@ Download it from **<https://apps.ankiweb.net>**, install it, and **open it once*
 - **Windows:** run the installer (`anki-…-windows.exe`).
 - **Linux:** use the official package from the download page, or Flatpak: `flatpak install flathub net.ankiweb.Anki`.
 
-Anki 23.10 or newer is required. If Anki is missing, the installer below offers to install it with Homebrew/Flatpak, or opens the download page.
+Anki 23.10 or newer is required.
 
 *Phone:* to get your cards on your phone, create a free [AnkiWeb](https://ankiweb.net) account, click **Sync** in Anki, and sign in to AnkiDroid (Android) or AnkiMobile (iPhone) with the same account.
 
-### 2. Run the installer (one line)
+### 2. Connect it to Claude: pick one
+
+| You use | Easiest option |
+|---|---|
+| **Claude Desktop** (chat) | [A. Desktop extension](#a-claude-desktop-extension-one-click): one click, nothing else to install |
+| **Claude Code** or **Cowork** | [B. Plugin](#b-claude-code--cowork-plugin) |
+| Not sure, or you want everything set up for you | [C. One-line installer](#c-one-line-installer-sets-up-everything) |
+
+Use only one of A and C for Claude Desktop; otherwise Claude sees the tools twice.
+
+#### A. Claude Desktop extension (one click)
+
+1. **AnkiConnect:** in Anki choose **Tools → Add-ons → Get Add-ons…**, enter **`2055492159`**, click OK, then **restart Anki**.
+2. Download **[anki-mcp-server.mcpb](https://github.com/MeisamHakimi/anki-mcp-server/releases/latest/download/anki-mcp-server.mcpb)** from the latest release.
+3. **Double-click** it, or in Claude Desktop go to **Settings → Extensions → Advanced settings → Install Extension…**, then click **Install**.
+
+Claude Desktop takes care of Python and everything else. In the extension's settings you can turn on **read-only mode** or turn off deleting.
+
+#### B. Claude Code / Cowork plugin
+
+- **Claude Code:** run these two commands in a session:
+
+  ```text
+  /plugin marketplace add MeisamHakimi/anki-mcp-server
+  /plugin install anki-flashcards@anki-mcp-server
+  ```
+
+- **Claude app (Cowork):** go to **Customize → Plugins → Add → Add marketplace**, enter `MeisamHakimi/anki-mcp-server`, then add **Anki Flashcards (community)**.
+
+The plugin adds the server and a skill that teaches Claude good Anki habits: dry runs first, and your approval before any change. It needs [uv](https://docs.astral.sh/uv/getting-started/installation/) and AnkiConnect. After installing uv, run `uvx anki-mcp-server setup --skip-claude` to check Anki and install AnkiConnect. The server runs on your computer, so the plugin works in **Claude Code and in Cowork sessions on your computer**, not in regular claude.ai chat (use option A for that).
+
+#### C. One-line installer (sets up everything)
 
 **macOS / Linux** (Terminal):
 
@@ -42,7 +73,7 @@ powershell -ExecutionPolicy ByPass -c "irm https://raw.githubusercontent.com/Mei
 The installer:
 1. installs [uv](https://docs.astral.sh/uv/) if it's missing. uv brings its own Python, so you don't need Python or git.
 2. starts the setup wizard, which **asks before every change**:
-   - checks that Anki is installed,
+   - checks that Anki is installed (and offers to install it with Homebrew/Flatpak, or opens the download page),
    - installs the **AnkiConnect** add-on from AnkiWeb (the same download Anki's *Get Add-ons* uses, verified before installing),
    - optionally installs the **Anki MCP Bridge** add-on (recommended if you use AwesomeTTS),
    - restarts Anki and checks the connection,
@@ -50,15 +81,13 @@ The installer:
 
 Add `--dry-run` to see what it would do without changing anything (`… | sh -s -- --dry-run`). To read the scripts first, see [install.sh](install.sh) and [install.ps1](install.ps1).
 
-### 3. Restart Claude and try it
+### 3. Try it
 
-Quit Claude Desktop **completely** (⌘Q on Mac, File → Exit on Windows) and reopen it. Then say **"Check my Anki status."**
+Restart Claude Desktop **completely** (⌘Q on Mac, File → Exit on Windows) after options A or C. Then say **"Check my Anki status."**
 
 You don't need to open Anki first: if it isn't running, the server starts it in the background. Claude asks permission the first time it uses each tool.
 
-Don't have Claude Desktop yet? Get it at <https://claude.ai/download>, then run the installer again.
-
-### Manual setup (if you prefer not to use the installer)
+### Manual setup
 
 1. **AnkiConnect:** in Anki choose **Tools → Add-ons → Get Add-ons…**, enter **`2055492159`**, click OK, then restart Anki.
 2. **uv:** run `curl -LsSf https://astral.sh/uv/install.sh | sh` (macOS/Linux) or `powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"` (Windows). Then find the **full path** of uvx with `which uvx` (macOS/Linux) or `where uvx` (Windows).
@@ -68,7 +97,7 @@ Don't have Claude Desktop yet? Get it at <https://claude.ai/download>, then run 
    "mcpServers": {
      "anki": {
        "command": "/Users/<you>/.local/bin/uvx",
-       "args": ["--from", "anki-mcp-server @ https://github.com/MeisamHakimi/anki-mcp-server/archive/refs/heads/main.zip", "anki-mcp-server"]
+       "args": ["anki-mcp-server"]
      }
    }
    ```
@@ -77,10 +106,10 @@ Don't have Claude Desktop yet? Get it at <https://claude.ai/download>, then run 
 4. **Claude Code:**
 
    ```bash
-   claude mcp add anki --scope user -- uvx --from "anki-mcp-server @ https://github.com/MeisamHakimi/anki-mcp-server/archive/refs/heads/main.zip" anki-mcp-server
+   claude mcp add anki --scope user -- uvx anki-mcp-server
    ```
 
-5. **Other MCP clients:** run the same `uvx …` command (or `pip install` the zip URL and run `anki-mcp-server`) as a stdio server.
+5. **Other MCP clients:** run `uvx anki-mcp-server` (or `pip install anki-mcp-server`, then run `anki-mcp-server`) as a stdio server.
 
 **macOS tip:** if Anki responds slowly while it's in the background, run this once and restart Anki:
 
@@ -90,7 +119,9 @@ defaults write net.ankiweb.dtop NSAppSleepDisabled -bool true
 
 ### Updating
 
-Run the installer again. It points Claude at the newest release; restart Claude afterwards.
+- **Desktop extension:** download the newer `.mcpb` from Releases and install it again.
+- **Plugin:** updates arrive automatically from the marketplace.
+- **Installer:** run it again, then restart Claude.
 
 ---
 
@@ -124,7 +155,7 @@ It listens on `127.0.0.1:8766` only, refuses requests from web browsers, and nev
 
 Your collection is personal data you've built over years, so this server is cautious by default:
 
-- **Local connections only.** It uses the stdio transport (no network listener) and only talks to Anki on `127.0.0.1`; other URLs are rejected. The one exception is built-in TTS, which sends the spoken text to Google.
+- **Local connections only.** It uses the stdio transport (no network listener) and only talks to Anki on `127.0.0.1`; other URLs are rejected. The one exception is built-in TTS, which sends the spoken text to Google (see [Privacy Policy](#privacy-policy)).
 - **Adding never overwrites.** Notes are added with `allowDuplicate=false`; duplicates are reported back as skipped. `dry_run` previews adds, imports and audio.
 - **Changes and deletions are two-step.** A tool that edits, moves, renames or deletes first returns a **preview** and a `confirm_token`, without changing anything. The change only runs when the tool is called again with that token. The token is rejected if the arguments differ, if the notes changed since the preview, or if the server restarted. The server tells the model to get your explicit approval first.
 - **Backups before every change** go to `~/.anki-mcp-server/backups/`: affected notes as JSON, and deleted decks as an `.apkg` with review history (restore it via Anki → File → Import). AnkiConnect edits bypass Anki's undo, so these backups are your undo. Anki's own automatic backups (File → Switch Profile → Open Backup) are another safety net.
@@ -201,7 +232,7 @@ Set these in the `env` block of your MCP config.
 ```json
 "anki": {
   "command": "/Users/<you>/.local/bin/uvx",
-  "args": ["--from", "anki-mcp-server @ https://github.com/MeisamHakimi/anki-mcp-server/archive/refs/heads/main.zip", "anki-mcp-server"],
+  "args": ["anki-mcp-server"],
   "env": { "ANKI_MCP_ALLOW_DELETE": "0" }
 }
 ```
@@ -227,10 +258,25 @@ git clone https://github.com/MeisamHakimi/anki-mcp-server && cd anki-mcp-server
 python -m venv .venv && .venv/bin/pip install -e ".[dev]"
 .venv/bin/pytest                 # tests use fake AnkiConnect and bridge servers; Anki isn't needed
 python scripts/build_addon.py    # builds dist/anki_mcp_bridge.ankiaddon
+python scripts/build_mcpb.py     # builds dist/anki-mcp-server.mcpb (needs Node.js)
+claude plugin validate ./plugins/anki-flashcards   # checks the Claude plugin
 .venv/bin/anki-mcp-server setup --dry-run   # try the setup wizard without changing anything
 npx @modelcontextprotocol/inspector .venv/bin/anki-mcp-server   # try the tools interactively
 ```
 
+## Privacy Policy
+
+anki-mcp-server runs entirely on your computer. The author collects no data and runs no servers, and there is no telemetry.
+- **Your notes** are read and changed locally through Anki/AnkiConnect on `127.0.0.1`. Tool results go to the AI app you use (e.g. Claude) under that app's privacy policy.
+- **Third parties, only when you use these features:**
+  - **Google** receives the text being spoken by the built-in text-to-speech.
+  - **AnkiWeb** receives your collection when you sync, through Anki itself.
+  - **AnkiWeb, PyPI, GitHub and astral.sh** serve the downloads during installation; these requests contain no personal data.
+- **Retention:** backups stay in `~/.anki-mcp-server/backups/` on your computer until you delete them. Nothing is kept by the author.
+- **Contact:** [GitHub issues](https://github.com/MeisamHakimi/anki-mcp-server/issues), or private reports through [security advisories](https://github.com/MeisamHakimi/anki-mcp-server/security/advisories/new).
+
+Full policy: [PRIVACY.md](PRIVACY.md). Security policy: [SECURITY.md](SECURITY.md).
+
 ## License
 
-MIT. Not affiliated with Anki, AnkiConnect, AwesomeTTS or Google.
+MIT. This is an unofficial community project, not affiliated with or endorsed by Anki/Ankitects, AnkiConnect, AwesomeTTS, Google or Anthropic.

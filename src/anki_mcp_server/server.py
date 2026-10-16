@@ -42,6 +42,26 @@ ADD = ToolAnnotations(readOnlyHint=False, destructiveHint=False, idempotentHint=
 CHANGE = ToolAnnotations(readOnlyHint=False, destructiveHint=True, idempotentHint=False, openWorldHint=False)
 DELETE = ToolAnnotations(readOnlyHint=False, destructiveHint=True, idempotentHint=False, openWorldHint=False)
 
+TITLES = {
+    "anki_status": "Anki status",
+    "anki_find_notes": "Find notes",
+    "anki_list_tags": "List tags",
+    "anki_open_browser": "Open Anki browser",
+    "anki_tts_status": "Text-to-speech status",
+    "anki_create_deck": "Create deck",
+    "anki_add_notes": "Add notes",
+    "anki_import_file": "Import notes from file",
+    "anki_generate_audio": "Add pronunciation audio",
+    "anki_sync": "Sync with AnkiWeb",
+    "anki_update_notes": "Edit notes",
+    "anki_move_notes": "Move notes",
+    "anki_rename_deck": "Rename deck",
+    "anki_rename_profile": "Rename profile",
+    "anki_install_bridge": "Install bridge add-on",
+    "anki_delete_notes": "Delete notes",
+    "anki_delete_deck": "Delete deck",
+}
+
 INSTRUCTIONS = """\
 Tools for the user's local Anki collection (via the AnkiConnect add-on). Start with anki_status to see decks and
 note types. Use dry_run=true to preview adds/imports. Tools that change or delete existing data first return a
@@ -62,7 +82,8 @@ def create_server(settings: Settings | None = None) -> MCPServer:
                 return fn
             if not settings.allow_delete and kind == "delete":
                 return fn
-            return mcp.tool(annotations=annotations)(fn)
+            title = TITLES[fn.__name__]
+            return mcp.tool(title=title, annotations=annotations.model_copy(update={"title": title}))(fn)
         return register
 
     # ---------- shared helpers ----------
@@ -441,7 +462,8 @@ def create_server(settings: Settings | None = None) -> MCPServer:
         return {"engine": "google", "generated": generated, "skipped": skipped, "failed": failed,
                 "counts": {"generated": len(generated), "skipped": len(skipped), "failed": len(failed)}}
 
-    @tool(ADD, "add")
+    # openWorldHint: the built-in engine sends the text to Google's TTS service.
+    @tool(ToolAnnotations(readOnlyHint=False, destructiveHint=False, idempotentHint=True, openWorldHint=True), "add")
     async def anki_generate_audio(
         query: str,
         source_field: str,
