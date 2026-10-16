@@ -49,7 +49,7 @@ Claude Desktop takes care of Python and everything else. In the extension's sett
 
   ```text
   /plugin marketplace add MeisamHakimi/anki-mcp-server
-  /plugin install anki-flashcards@anki-mcp-server
+  /plugin install anki-flashcards@meisamhakimi
   ```
 
 - **Claude app (Cowork):** go to **Customize → Plugins → Add → Add marketplace**, enter `MeisamHakimi/anki-mcp-server`, then add **Anki Flashcards (community)**.
