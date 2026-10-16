@@ -6,7 +6,7 @@ This is an unofficial, community-maintained project. It isn't affiliated with or
 
 ## What it contains
 
-- **MCP server `anki`**: runs [`anki-mcp-server`](https://pypi.org/project/anki-mcp-server/) 0.2.0 on your computer with `uv run --locked`. The bundled `uv.lock` pins the server and every dependency to exact versions with hashes, all from PyPI. It talks only to Anki on `127.0.0.1` through the AnkiConnect add-on.
+- **MCP server `anki`**: runs [`anki-mcp-server`](https://pypi.org/project/anki-mcp-server/) 0.2.0 on your computer with `uvx anki-mcp-server==0.2.0`. The bundled `uv.lock` records the exact versions, PyPI sources and hashes of the server and every dependency. It talks only to Anki on `127.0.0.1` through the AnkiConnect add-on.
 - **Skill `anki-flashcards`**: tells Claude how to use the tools well. It checks your real deck and field names first, previews imports with a dry run, and asks for your approval before any edit or delete.
 
 The server runs on your computer, so it works in **Claude Code** and in **Cowork** sessions on your computer. Regular claude.ai chat doesn't start local servers. For the Claude Desktop chat, use the one-click desktop extension or the installer from the [main README](https://github.com/MeisamHakimi/anki-mcp-server#readme).

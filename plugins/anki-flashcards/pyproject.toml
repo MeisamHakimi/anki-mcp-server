@@ -1,5 +1,5 @@
-# Pins the exact anki-mcp-server release and every dependency it needs. uv.lock (next to this file) records
-# each package's exact version, source and hashes; the plugin's MCP server runs with `uv run --locked`.
+# Lock for the plugin's MCP server (`uvx anki-mcp-server==0.2.0` in .mcp.json): uv.lock, next to this file,
+# records the exact version, PyPI source and hashes of the server and every dependency.
 # Regenerate after changing the version: uv lock --project plugins/anki-flashcards
 [project]
 name = "anki-flashcards-plugin"

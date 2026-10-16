@@ -1,8 +1,8 @@
 {
   "mcpServers": {
     "anki": {
-      "command": "uv",
-      "args": ["run", "--locked", "--quiet", "--project", "${CLAUDE_PLUGIN_ROOT}", "anki-mcp-server"]
+      "command": "uvx",
+      "args": ["anki-mcp-server==0.2.0"]
     }
   }
 }

@@ -27,6 +27,7 @@ jobs:
           v=$(python -c "import tomllib; print(tomllib.load(open('pyproject.toml','rb'))['project']['version'])")
           test "v$v" = "$GITHUB_REF_NAME" || { echo "Tag $GITHUB_REF_NAME doesn't match version $v"; exit 1; }
           grep -q "\"anki-mcp-server==$v\"" plugins/anki-flashcards/pyproject.toml || { echo "plugin pyproject.toml isn't pinned to $v"; exit 1; }
+          grep -q "\"anki-mcp-server==$v\"" plugins/anki-flashcards/.mcp.json || { echo ".mcp.json isn't pinned to $v"; exit 1; }
           grep -q "\"version\": \"$v\"" plugins/anki-flashcards/.claude-plugin/plugin.json || { echo "plugin.json version isn't $v"; exit 1; }
       - run: python -m pip install build -e ".[dev]"
       - run: python -m pytest -q
